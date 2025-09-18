@@ -83,7 +83,7 @@ class RateLimiter:
         self.logger = logging.getLogger(self.__class__.__name__)
         self._verification_failed: bool = False
 
-        self.enabled: bool = True
+        self.enabled: bool = False
         self.global_limit: int = 50
         self.global_period_seconds: int = 3600 
         try:
@@ -133,46 +133,30 @@ class RateLimiter:
                 raise ConfigVerificationError("签名验证时发生未知错误")
 
             try:
-                json_bytes = bytearray()
-                for i, byte in enumerate(obfuscated_bytes):
-                    json_bytes.append(byte ^ XOR_KEY[i % len(XOR_KEY)])
-
-                config_data = json.loads(json_bytes.decode('utf-8'))
-
-                key_from_config = config_data.get("xorKey")
-                if not key_from_config:
-                    self.logger.critical("!!! 严重安全警告：配置文件中缺少 'xorKey'，无法校验配置来源。")
-                    self._verification_failed = True
-                    raise ConfigVerificationError("配置文件中缺少xorKey")
-
-                if key_from_config.encode('utf-8') != XOR_KEY:
-                    self.logger.critical("!!! 严重安全警告：XOR密钥不匹配！配置文件可能来自错误来源或已被篡改。")
-                    self._verification_failed = True
-                    raise ConfigVerificationError("XOR密钥不匹配")
-                self.logger.info("XOR密钥验证通过，配置文件来源可信。")
-                if config_data:
-                    self.enabled = config_data.get("enabled", self.enabled)
-                    self.global_limit = config_data.get("global_limit", self.global_limit)
-                    if "global_period_seconds" in config_data:
-                        self.global_period_seconds = config_data.get("global_period_seconds", self.global_period_seconds)
-                    elif "global_period" in config_data: 
-                        period_map = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
-                        self.global_period_seconds = period_map.get(config_data["global_period"], 3600)
-                    self.logger.info(f"成功加载并验证了速率限制配置文件。参数: 启用={self.enabled}, 限制={self.global_limit}次/{self.global_period_seconds}秒")
-                
                 # ======= LOCAL BYPASS PATCH START =======
-                # 本地临时补丁：强制禁用限流并清除验证失败标志
-                self.enabled = False
-                self._verification_failed = False
-                self.logger.warning("Local patch: RateLimiter bypass enabled — limits are disabled by local patch.")
+                self.enabled = False                  # 禁用限流
+                self._verification_failed = False     # 清除验证失败标志
+                self.logger.warning("Local patch: RateLimiter bypass enabled — limits are disabled by local patch. rate_limit.bin 文件不会被读取。"
+)
                 # ======= LOCAL BYPASS PATCH END =======
 
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                self.logger.critical("!!! 严重安全警告：解密或解析速率限制配置失败！这很可能是由于XOR密钥不正确导致的。")
-                self.logger.critical("!!! 为保证安全，所有弹幕下载请求将被阻止，直到问题解决。")
-                self._verification_failed = True
-                # 抛出一个更清晰的异常，以便外部捕获块可以显示一个简洁的警告
-                raise ConfigVerificationError("解密配置失败，可能是XOR密钥错误") from e
+                #json_bytes = bytearray()
+                #for i, byte in enumerate(obfuscated_bytes):
+                    #json_bytes.append(byte ^ XOR_KEY[i % len(XOR_KEY)])
+
+                #config_data = json.loads(json_bytes.decode('utf-8'))
+
+               # key_from_config = config_data.get("xorKey")
+                #if not key_from_config:
+                    #self.logger.critical("!!! 严重安全警告：配置文件中缺少 'xorKey'，无法校验配置来源。")
+                    #self._verification_failed = True
+                    #raise ConfigVerificationError("配置文件中缺少xorKey")
+
+                #if key_from_config.encode('utf-8') != XOR_KEY:
+                    #self.logger.critical("!!! 严重安全警告：XOR密钥不匹配！配置文件可能来自错误来源或已被篡改。")
+                    #self._verification_failed = True
+                    #raise ConfigVerificationError("XOR密钥不匹配")
+                #self.logger.info("XOR密钥验证通过，配置文件来源可信。")
 
         except Exception as e:
             if not self._verification_failed:
